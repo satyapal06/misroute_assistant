@@ -1,3 +1,4 @@
+from pymongo import MongoClient
 import csv
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
@@ -31,17 +32,28 @@ def writeToCSV(filename, contents_to_write):
 	return True
 
 
-def findMatch(data_to_search, data_to_search_from, filename):
+def findMatch(data_to_search, filename):
 	list_to_write = []
+	i = 0
+	index = 0
 	for row in data_to_search:
-		ratio = 0
-		for address in data_to_search_from:
-			if fuzz.token_set_ratio(row, address) > ratio :
-				ratio = fuzz.token_set_ratio(row, address)
-				found_adr = address
-		# result = list(process.extractOne(row, data_to_search_from))
-		my_dict = {'what_we_searched': row, 'what_we_got': found_adr, 'confidence': ratio}
-		list_to_write.append(my_dict)
+		print "\r\rFinding document ... [%s / %s]" % (i+1, len(data_to_search)),
+		mongoDoc = findMongoDocument(row['ph'])
+		max_ratio = 0
+		for order in mongoDoc['shipment_details']:
+			if fuzz.token_set_ratio(row['add'], order['add']) > max_ratio:
+				max_ratio = fuzz.token_set_ratio(row['add'], order['add'])
+				index = mongoDoc['shipment_details'].index(order)
+		if max_ratio >= 75:
+			my_dict = mongoDoc['shipment_details'][index]
+			row['dc'] = my_dict['cs_sl']
+			row['confidence'] = max_ratio
+		else:
+			row['dc'] = ''
+			row['confidence'] = ''
+		list_to_write.append(row)
+		i += 1
+	# Write the rows to a csv
 	status = False
 	while status is False:
 		try:
@@ -50,16 +62,22 @@ def findMatch(data_to_search, data_to_search_from, filename):
 			ch = raw_input("Close the file <" + filename + "> and press any key to continue: ")
 
 
+def findMongoDocument(phone):
+	client = MongoClient()
+	my_db = client.custdb
+	col = my_db.cust_details
+	cursor = col.find()
+	for doc in cursor:
+		if phone in (doc["phone_number"]):
+			client.close()
+			return doc
+
+
 if __name__ == '__main__':
-	contents_to_search, contents_to_search_from = [], []
+	contents_to_search_from = []
 	readCustomerDataFromCSV('sample_file.csv', contents_to_search_from)
-	data_to_search_from = []
-	for row in contents_to_search_from:
-		data_to_search_from.append(row['address_sample_reference'])
-	readCustomerDataFromCSV('data_to_search.csv', contents_to_search)
-	data_to_search = []
-	for row in contents_to_search:
-		data_to_search.append(row['address_test'])
-	findMatch(data_to_search, data_to_search_from, "found.csv")
+	# Find the document and fetch relevant columns
+	findMatch(contents_to_search_from, "sample_file_result.csv")
+	# End of Program
 	message = "Program Complete"
-	print "-" * len(message) + "\n" + message + "\n" + "-" * len(message)
+	print "\n" + "-" * len(message) + "\n" + message + "\n" + "-" * len(message)

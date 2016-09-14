@@ -1,5 +1,6 @@
 import csv
 from pymongo import MongoClient
+import formatting
 
 
 def readCustomerDataFromCSV(filename, records_list):
@@ -20,20 +21,28 @@ def readCustomerDataFromCSV(filename, records_list):
 
 def organizeData(original_contents, new_contents):
 	# PURPOSE:
-	#       This function reads the contents of customer data from the CSV file
-	#       and splits the rows if they contain multiple phone numbers
+	#       This function reads the contents of customer data from the CSV file,
+	#       formats the phone numbers, addresses and then splits the rows
+	#       if they contain multiple phone numbers
 	# ARGUMENTS:
 	#       "original_contents" is the data read from the csv file
 	#       "new_contents" is a list where the split data is stored (Call by Reference)
+	current_item = 1
 	for row in original_contents:
-		phone_numbers = row['ph'].replace("[", "").replace("]", "").replace("\"", "").split(",")
+		print "\rOrganising Data ... [%s / %s]" % (current_item, len(original_contents)),
+		new_adr = formatting.formatAddress(row['add'])
+		row['add'] = formatting.mergeAbbreviations(new_adr)
+		phone_numbers = formatting.formatPhone(row['ph'])
 		if len(phone_numbers) > 1:
 			for phone in phone_numbers:
 				row['ph'] = phone
 				new_contents.append(row)
-		else:
+		elif len(phone_numbers) == 1:
 			row['ph'] = "".join(phone_numbers)
 			new_contents.append(row)
+		else:
+			pass  # Don't add those rows
+		current_item += 1
 
 
 def findUniquePhoneNumbers(contents):
@@ -63,7 +72,7 @@ def collectDataForEachPhone(unique_phone_numbers, contents):
 	list_of_documents_created = []
 	current_item = 1
 	for phone_number in unique_phone_numbers:
-		print "\rCreating mongo documents ... [%s / %s]" % (current_item, len(unique_phone_numbers)),
+		print "\rCreating JSON and storing mongo documents ... [%s / %s]" % (current_item, len(unique_phone_numbers)),
 		cust_name = []
 		cust_email = []
 		shipment_details = []
@@ -75,29 +84,39 @@ def collectDataForEachPhone(unique_phone_numbers, contents):
 				shipment_details.append(
 					{
 						"wbn": row['wbn'],
-						"mode_of_payment": row['pt'],
-						"nsl": row['nsl']
-					}
-				)
-				add_dc_history.append(
-					{
-						"address": row['add'],
-						"dc": row['cs.sl'],
-						"pin": row['cpin'],
-						"aseg_pin": row['aseg.pin'],
-						"aseg_loc": row['aseg.loc']
+						"nsl": row["nsl"],
+						"cn": row["cn"],
+						"pin": row["pin"],
+						"cl": row["cl"],
+						"fpd": row["fpd"],
+						"nm": row["nm"],
+						"pt": row["pt"],
+						"occ": row["occ"],
+						"add": row["add"],
+						"rcn": row["rcn"],
+						"aseg_loc": row["aseg.loc"],
+						"cnc": row["cnc"],
+						"pd": row["pd"],
+						"cs_st": row["cs.st"],
+						"cpin": row["cpin"],
+						"cs_ss": row["cs.ss"],
+						"cs_sl": row["cs.sl"],
+						"cs_sd": row["cs.sd"],
+						"aseg_pin": row["aseg.pin"],
+						"cty": row["cty"],
+						"pdd": row["pdd"]
 					}
 				)
 		myDict = {
 			"phone_number": phone_number,
 			"customer_name": list(set(cust_name)),
 			"customer_email": list(set(cust_email)),
-			"shipment_details": shipment_details,
-			"add_dc_history": add_dc_history
+			"shipment_details": shipment_details
 		}
-		list_of_documents_created.append(myDict)
+		# list_of_documents_created.append(myDict)
+		updateMongo(myDict)
 		current_item += 1
-	return list_of_documents_created
+	# return list_of_documents_created
 
 
 def updateMongo(all_documents):
@@ -110,11 +129,7 @@ def updateMongo(all_documents):
 	client = MongoClient()
 	my_db = client.custdb
 	col = my_db.cust_details
-	current_item = 1
-	for document in all_documents:
-		print "\rCreating mongo documents ... [%s / %s]" % (current_item, len(all_documents)),
-		col.insert_one(document)
-		current_item += 1
+	col.insert_one(all_documents)
 	client.close()
 
 
@@ -137,12 +152,13 @@ if __name__ == '__main__':
 	print "Organizing data ...",
 	organizeData(csv_contents, split_contents)
 	print "\r<Complete> Organizing data ..."
+	# writeToCSV(split_contents)
 	print "Finding unique phone numbers ...",
 	unique_numbers = findUniquePhoneNumbers(split_contents)
 	print "\r<Complete> Finding unique phone numbers ..."
 	print "Creating mongo documents ...",
-	list_of_documents = collectDataForEachPhone(unique_numbers, split_contents)
-	print "\r\r<Complete> Creating mongo documents ..."
-	print "Pushing documents to mongodb ...",
-	updateMongo(list_of_documents)
+	collectDataForEachPhone(unique_numbers, split_contents)
+	print "\r\r<Complete> Creating JSON documents ..."
 	print "\r\r<Complete> Pushing documents to mongodb ..."
+	msg = "***** End of Program *****"
+	print ("-" * len(msg)) + "\n" + msg + ("\n" + "-" * len(msg))
