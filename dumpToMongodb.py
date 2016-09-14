@@ -1,6 +1,6 @@
 import csv
 from pymongo import MongoClient
-import formatting
+from Source import formatting
 
 
 def readCustomerDataFromCSV(filename, records_list):
@@ -72,7 +72,8 @@ def collectDataForEachPhone(unique_phone_numbers, contents):
 	list_of_documents_created = []
 	current_item = 1
 	for phone_number in unique_phone_numbers:
-		print "\rCreating JSON and storing mongo documents ... [%s / %s]" % (current_item, len(unique_phone_numbers)),
+		print "\rCreating JSON and storing mongo documents ... [%s / %s]" % (
+		current_item, len(unique_phone_numbers)),
 		cust_name = []
 		cust_email = []
 		shipment_details = []

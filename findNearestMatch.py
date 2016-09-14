@@ -66,11 +66,12 @@ def findMongoDocument(phone):
 	client = MongoClient()
 	my_db = client.custdb
 	col = my_db.cust_details
-	cursor = col.find()
+	cursor = col.find({'phone_number': str(phone)})
+	document = {}
 	for doc in cursor:
-		if phone in (doc["phone_number"]):
-			client.close()
-			return doc
+		document = doc
+	client.close()
+	return document
 
 
 if __name__ == '__main__':
