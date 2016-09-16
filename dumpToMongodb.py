@@ -1,165 +1,178 @@
-import csv
+import pprint
 from pymongo import MongoClient
+import csv
 from Source import formatting
 
 
-def readCustomerDataFromCSV(filename, records_list):
+client = MongoClient()
+my_db = client.custdb
+col = my_db.cust_details_new
+
+
+def readCustomerDataFromCSVandFormat(filename):
 	# PURPOSE:
 	#       This function reads the contents of customer data from the CSV file
+	#       formats the phone numbers and the addresses.
+	#       For each row that is read, its formatted first and then passed into
+	#       the function 'main_body'. All these steps happen row by row.
 	# ARGUMENTS:
 	#       "filename": This is the name of the file from where data has to read
-	#       "records_list": This is an empty list into which newly read data will be added
-	# Its better to call the records_list by reference than to return it
+	print "Determining file size ... ",
+	total_row_count = 0
+	with open(filename, "r") as f:
+		reader = csv.reader(f, delimiter=",")
+		data = list(reader)
+		total_row_count = len(data)
+
 	data = open(filename, 'rU')
 	reader = csv.reader(data)
+	# total_row_count = len(list(reader))
 	keys = reader.next()
+	i = 1
 	for row in reader:
+		print "\r\rWorking on Row [%s/%s]" % (i, total_row_count),
 		record_dict = dict(zip(keys, row))
-		records_list.append(record_dict)
+		# We only need those records where status is 'Delivered'
+		if record_dict['cs.st'] in ['DL', 'dl']:
+			# Formatting the phone and the address
+			record_dict['ph'] = formatting.formatPhone(record_dict['ph'])
+			record_dict['add'] = formatting.formatAddress(record_dict['add'])
+			# Sending this row_of_data to mongodb
+			main_body(record_dict)
+			i += 1
 	data.close()
 
 
-def organizeData(original_contents, new_contents):
-	# PURPOSE:
-	#       This function reads the contents of customer data from the CSV file,
-	#       formats the phone numbers, addresses and then splits the rows
-	#       if they contain multiple phone numbers
-	# ARGUMENTS:
-	#       "original_contents" is the data read from the csv file
-	#       "new_contents" is a list where the split data is stored (Call by Reference)
-	current_item = 1
-	for row in original_contents:
-		print "\rOrganising Data ... [%s / %s]" % (current_item, len(original_contents)),
-		new_adr = formatting.formatAddress(row['add'])
-		row['add'] = formatting.mergeAbbreviations(new_adr)
-		phone_numbers = formatting.formatPhone(row['ph'])
-		if len(phone_numbers) > 1:
-			for phone in phone_numbers:
-				row['ph'] = phone
-				new_contents.append(row)
-		elif len(phone_numbers) == 1:
-			row['ph'] = "".join(phone_numbers)
-			new_contents.append(row)
-		else:
-			pass  # Don't add those rows
-		current_item += 1
-
-
-def findUniquePhoneNumbers(contents):
-	# PURPOSE:
-	#       This function reads the contents of customer data from the CSV file
-	#       and finds all the unique phone numbers
-	# ARGUMENTS:
-	#       "contents" is the split data
-	phone_number_list = []
-	for row in contents:
-		phone_number_list.append(row['ph'])
-	unique_phone_number_list = list(set(phone_number_list))
-	return unique_phone_number_list
-
-
-def collectDataForEachPhone(unique_phone_numbers, contents):
-	# PURPOSE:
-	#       This function reads the contents of customer data from the CSV file
-	#       and create JSON style documents for each unique phone number.
-	#       A document for a phone number will contain the list of all the WBNs,
-	#       all the previous addresses, the corresponding DCc and so forth.
-	# ARGUMENTS:
-	#       "unique_phone_numbers": Its a list containing all the unique mobiles
-	#       "contents": this the split content
-	#  RETURNS:
-	#       The function returns all the documents for all the phone numbers
-	list_of_documents_created = []
-	current_item = 1
-	for phone_number in unique_phone_numbers:
-		print "\rCreating JSON and storing mongo documents ... [%s / %s]" % (
-		current_item, len(unique_phone_numbers)),
-		cust_name = []
-		cust_email = []
-		shipment_details = []
-		add_dc_history = []
-		for row in contents:
-			if phone_number == row['ph']:
-				cust_name.append(row['nm'])
-				if cust_email: cust_email.append(row['em'])
-				shipment_details.append(
-					{
-						"wbn": row['wbn'],
-						"nsl": row["nsl"],
-						"cn": row["cn"],
-						"pin": row["pin"],
-						"cl": row["cl"],
-						"fpd": row["fpd"],
-						"nm": row["nm"],
-						"pt": row["pt"],
-						"occ": row["occ"],
-						"add": row["add"],
-						"rcn": row["rcn"],
-						"aseg_loc": row["aseg.loc"],
-						"cnc": row["cnc"],
-						"pd": row["pd"],
-						"cs_st": row["cs.st"],
-						"cpin": row["cpin"],
-						"cs_ss": row["cs.ss"],
-						"cs_sl": row["cs.sl"],
-						"cs_sd": row["cs.sd"],
-						"aseg_pin": row["aseg.pin"],
-						"cty": row["cty"],
-						"pdd": row["pdd"]
-					}
-				)
-		myDict = {
-			"phone_number": phone_number,
-			"customer_name": list(set(cust_name)),
-			"customer_email": list(set(cust_email)),
-			"shipment_details": shipment_details
-		}
-		# list_of_documents_created.append(myDict)
-		updateMongo(myDict)
-		current_item += 1
-	# return list_of_documents_created
-
-
-def updateMongo(all_documents):
+def insertDocumentInMongo(document):
 	# PURPOSE:
 	#       This function accepts the documents that were created by the function
 	#       'collectDataForEachPhone' and stores them in mongodb
 	# ARGUMENTS:
 	#       "all_documents": This is a list containing the JSON style documents
 	#       to be stored in mongodb
-	client = MongoClient()
-	my_db = client.custdb
-	col = my_db.cust_details
-	col.insert_one(all_documents)
-	client.close()
+	# client = MongoClient()
+	# my_db = client.custdb
+	# col = my_db.cust_details_new
+	col.insert_one(document)
+	# client.close()
 
 
-def writeToCSV(contents):
+def writeToCSV(filename, contents_to_write):
 	# PURPOSE:
-	#       This function reads the contents of a List of Dictionaries, and stores
-	#       them in a csv file.
-	with open('mycsvfile.csv', 'wb') as f:
-		w = csv.DictWriter(f, contents[0].keys())
+	#       This function reads the contents of a List of Dictionaries,
+	#       and stores them in a csv file.
+	with open(filename, 'wb') as f:
+		w = csv.DictWriter(f, contents_to_write[0].keys())
 		w.writeheader()
-		for row in contents:
+		for row in contents_to_write:
 			w.writerow(row)
+	return True
+
+
+def replaceDocument(phone, new_document):
+	# client = MongoClient()
+	# db = client.custdb
+	# col = db.cust_details_new
+	result = col.replace_one({'phone_number': str(phone)}, new_document)
+	# client.close()
+
+
+def fetchMongoDoc(phone):
+	# client = MongoClient()
+	# my_db = client.custdb
+	# col = my_db.cust_details_new
+	cursor = col.find({'phone_number': str(phone)})
+	document = {}
+	for doc in cursor:
+		document = doc
+	# client.close()
+	return document
+
+
+def main_body(row_of_data):
+	for phone in row_of_data['ph']:
+		# For each phone in the ph column of the row, check if that
+		# phone is present in mongodb
+		doc = fetchMongoDoc(phone)
+
+		#  If the phone already exists in mongodb
+		if doc:
+			#  Check if the current wbn is already present in the order history
+			already_present = False
+			for order in doc['shipment_details']:
+				if row_of_data['wbn'] == order['wbn']:
+					already_present = True
+					break
+			# If the wbn is already present
+			if already_present:
+				# Do nothing
+				pass
+			# If the wbn is not present, then add the order to existing document
+			else:
+				new_order = {
+					"wbn": row_of_data['wbn'],
+					"em": row_of_data["em"],
+					"nsl": row_of_data["nsl"],
+					"cn": row_of_data["cn"],
+					"pin": row_of_data["pin"],
+					"cl": row_of_data["cl"],
+					"fpd": row_of_data["fpd"],
+					"nm": row_of_data["nm"],
+					"pt": row_of_data["pt"],
+					"add": row_of_data["add"],
+					"rcn": row_of_data["rcn"],
+					"aseg_loc": row_of_data["aseg.loc"],
+					"cnc": row_of_data["cnc"],
+					"pd": row_of_data["pd"],
+					"cs_st": row_of_data["cs.st"],
+					"cpin": row_of_data["cpin"],
+					"cs_ss": row_of_data["cs.ss"],
+					"cs_sl": row_of_data["cs.sl"],
+					"cs_sd": row_of_data["cs.sd"],
+					"aseg_pin": row_of_data["aseg.pin"],
+					"cty": row_of_data["cty"],
+					"pdd": row_of_data["pdd"]
+				}
+				doc['shipment_details'].append(new_order)
+				# Code to replace the existing doc in mongo
+				replaceDocument(phone, doc)
+
+		# If the phone doesn't exist in mongodb
+		else:
+			# Create the document
+			document_to_insert = {
+				'phone_number': phone,
+				'shipment_details': [
+					{
+						"wbn": row_of_data['wbn'],
+						"em": row_of_data["em"],
+						"nsl": row_of_data["nsl"],
+						"cn": row_of_data["cn"],
+						"pin": row_of_data["pin"],
+						"cl": row_of_data["cl"],
+						"fpd": row_of_data["fpd"],
+						"nm": row_of_data["nm"],
+						"pt": row_of_data["pt"],
+						"add": row_of_data["add"],
+						"rcn": row_of_data["rcn"],
+						"aseg_loc": row_of_data["aseg.loc"],
+						"cnc": row_of_data["cnc"],
+						"pd": row_of_data["pd"],
+						"cs_st": row_of_data["cs.st"],
+						"cpin": row_of_data["cpin"],
+						"cs_ss": row_of_data["cs.ss"],
+						"cs_sl": row_of_data["cs.sl"],
+						"cs_sd": row_of_data["cs.sd"],
+						"aseg_pin": row_of_data["aseg.pin"],
+						"cty": row_of_data["cty"],
+						"pdd": row_of_data["pdd"]
+					}
+				]
+			}
+			# Insert the document into mongodb
+			insertDocumentInMongo(document_to_insert)
 
 
 if __name__ == '__main__':
-	csv_contents, split_contents = [], []
-	print "Reading file ...",
-	readCustomerDataFromCSV("city_file.csv", csv_contents)
-	print "\r<Complete> Reading file ..."
-	print "Organizing data ...",
-	organizeData(csv_contents, split_contents)
-	print "\r<Complete> Organizing data ..."
-	# writeToCSV(split_contents)
-	print "Finding unique phone numbers ...",
-	unique_numbers = findUniquePhoneNumbers(split_contents)
-	print "\r<Complete> Finding unique phone numbers ..."
-	print "Creating mongo documents ...",
-	collectDataForEachPhone(unique_numbers, split_contents)
-	print "\r\r<Complete> Creating JSON documents ..."
-	print "\r\r<Complete> Pushing documents to mongodb ..."
-	msg = "***** End of Program *****"
-	print ("-" * len(msg)) + "\n" + msg + ("\n" + "-" * len(msg))
+	readCustomerDataFromCSVandFormat("till_13303787.csv")
+	client.close()

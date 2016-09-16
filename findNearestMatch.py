@@ -1,7 +1,12 @@
 from pymongo import MongoClient
 import csv
 from fuzzywuzzy import fuzz
-from fuzzywuzzy import process
+from Source import formatting
+
+
+client = MongoClient()
+my_db = client.custdb
+col = my_db.cust_details
 
 
 def readCustomerDataFromCSV(filename, records_list):
@@ -36,23 +41,43 @@ def findMatch(data_to_search, filename):
 	list_to_write = []
 	i = 0
 	index = 0
+	phone_not_found_count = 0
+	phone_numbers_found = 0
 	for row in data_to_search:
-		print "\r\rFinding document ... [%s / %s]" % (i+1, len(data_to_search)),
-		mongoDoc = findMongoDocument(row['ph'])
-		max_ratio = 0
-		for order in mongoDoc['shipment_details']:
-			if fuzz.token_set_ratio(row['add'], order['add']) > max_ratio:
-				max_ratio = fuzz.token_set_ratio(row['add'], order['add'])
-				index = mongoDoc['shipment_details'].index(order)
-		if max_ratio >= 75:
-			my_dict = mongoDoc['shipment_details'][index]
-			row['dc'] = my_dict['cs_sl']
-			row['confidence'] = max_ratio
-		else:
-			row['dc'] = ''
-			row['confidence'] = ''
-		list_to_write.append(row)
-		i += 1
+		print "\r\rFinding document ... [%s / %s]\tPhone numbers not found: %s\tPhone numbers found: %s" % (
+			i + 1, len(data_to_search), phone_not_found_count, phone_numbers_found),
+		phone_numbers = formatting.formatPhone(row['ph'])
+		for phone in phone_numbers:
+			mongoDoc = findMongoDocument(phone)
+			if not mongoDoc:
+				# print "Phone not found"
+				phone_not_found_count += 1
+				row['dc_found'] = ''
+				row['confidence'] = ''
+				list_to_write.append(row)
+				# print "\r\rFinding document ... [%s / %s]\tPhone numbers not found: %s\tPhone numbers found: %s" % (
+				# 	i + 1, len(data_to_search), phone_not_found_count, phone_numbers_found),
+				i += 1
+				continue
+			# print "phone found"
+			phone_numbers_found += 1
+			max_ratio = 0
+			for order in mongoDoc['shipment_details']:
+				address = formatting.formatAddress(row['add'])
+				if fuzz.token_set_ratio(address, order['add']) > max_ratio:
+					max_ratio = fuzz.token_set_ratio(address, order['add'])
+					index = mongoDoc['shipment_details'].index(order)
+			if max_ratio >= 75:
+				# print "address found"
+				my_dict = mongoDoc['shipment_details'][index]
+				row['dc_found'] = my_dict['cs_sl']
+				row['confidence'] = max_ratio
+			else:
+				row['dc_found'] = ''
+				row['confidence'] = ''
+			list_to_write.append(row)
+			i += 1
+	# print "\nPhone numbers found: %s" % phone_numbers_found
 	# Write the rows to a csv
 	status = False
 	while status is False:
@@ -63,22 +88,23 @@ def findMatch(data_to_search, filename):
 
 
 def findMongoDocument(phone):
-	client = MongoClient()
-	my_db = client.custdb
-	col = my_db.cust_details
+	# client = MongoClient()
+	# my_db = client.custdb
+	# col = my_db.cust_details
 	cursor = col.find({'phone_number': str(phone)})
 	document = {}
 	for doc in cursor:
 		document = doc
-	client.close()
+	# client.close()
 	return document
 
 
 if __name__ == '__main__':
 	contents_to_search_from = []
-	readCustomerDataFromCSV('sample_file.csv', contents_to_search_from)
+	readCustomerDataFromCSV('sample_file_1.csv', contents_to_search_from)
 	# Find the document and fetch relevant columns
 	findMatch(contents_to_search_from, "sample_file_result.csv")
 	# End of Program
 	message = "Program Complete"
 	print "\n" + "-" * len(message) + "\n" + message + "\n" + "-" * len(message)
+	client.close()

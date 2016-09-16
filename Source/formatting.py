@@ -104,7 +104,9 @@ def formatAddress(address):
 	while "  " in new_adr:
 		new_adr = new_adr.replace("  ", " ")
 	new_adr = new_adr.strip()
-	return new_adr.lower()
+	new_adr = new_adr.lower()
+	new_adr = mergeAbbreviations(new_adr)
+	return new_adr
 
 
 def formatPhone(number_list):
