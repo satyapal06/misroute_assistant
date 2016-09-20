@@ -69,7 +69,7 @@ def mergeAbbreviations(address):
 		start_regex_match_new = str(start_regex_match).replace(" ", "") + " "
 		address = address.replace(start_regex_match, start_regex_match_new)
 
-	#       The purpose of below code block is to look for abbreviations in the
+	# The purpose of below code block is to look for abbreviations in the
 	#       end of the address and consolidate it
 	end_regex = re.compile(r'([\s][a-z])+$')
 	end_regex_match = end_regex.search(address)
@@ -78,7 +78,7 @@ def mergeAbbreviations(address):
 		end_regex_match_new = " " + str(end_regex_match).replace(" ", "")
 		address = address.replace(end_regex_match, end_regex_match_new)
 
-	#       The purpose of below code block is to look for abbreviations in the
+	# The purpose of below code block is to look for abbreviations in the
 	#       middle of the address and consolidate it
 	while True:
 		middle_regex = re.compile(r' ([a-z][\s])+')
@@ -156,53 +156,6 @@ def formatPhone(number_list):
 					list_of_formatted_numbers.append(new_num)
 				elif len(num) > 10:
 					list_of_formatted_numbers.append(num)
-
+	# Get unique numbers
+	list_of_formatted_numbers = list(set(list_of_formatted_numbers))
 	return list_of_formatted_numbers
-
-# def readCustomerDataFromCSV(filename, records_list):
-# 	# PURPOSE:
-# 	#       This function reads the contents of customer data from the CSV file
-# 	# ARGUMENTS:
-# 	#       "filename": This is the name of the file from where data has to read
-# 	#       "records_list": This is an empty list into which newly read data will be added
-# 	# Its better to call the records_list by reference than to return it
-# 	data = open(filename, 'rU')
-# 	reader = csv.reader(data)
-# 	keys = reader.next()
-# 	for row in reader:
-# 		record_dict = dict(zip(keys, row))
-# 		records_list.append(record_dict)
-# 	data.close()
-
-
-# def writeToCSV(filename, contents):
-# 	# PURPOSE:
-# 	#       This function reads the contents of a List of Dictionaries, and stores
-# 	#       them in a csv file.
-# 	with open(filename, 'wb') as f:
-# 		w = csv.DictWriter(f, contents[0].keys())
-# 		w.writeheader()
-# 		for row in contents:
-# 			w.writerow(row)
-# 	return True
-
-
-# if __name__ == '__main__':
-# 	records_list = []
-# 	final_list = []
-# 	readCustomerDataFromCSV('data.csv', records_list)
-# 	for row in records_list:
-# 		myDict = {
-# 			"Original Phone": str(row['ph']),
-# 			"Formatted Phone": str(formatPhone(row['ph'])),
-# 			"Original Address": str(row['add']),
-# 			"Formatted Add": formatAddress(row['add'])
-# 		}
-# 		final_list.append(myDict)
-#
-# 	status = False
-# 	while status is False:
-# 		try:
-# 			status = writeToCSV("formatting.csv", final_list)
-# 		except IOError as e:
-# 			ch = raw_input("Close the file <formatting.csv> and press any key to continue: ")
