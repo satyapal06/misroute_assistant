@@ -6,7 +6,7 @@ from Source import formatting
 
 client = MongoClient()
 my_db = client.custdb
-col = my_db.cust_details_new
+col = my_db.cust_details
 
 
 def readCustomerDataFromCSVandFormat(filename):
@@ -22,14 +22,16 @@ def readCustomerDataFromCSVandFormat(filename):
 	with open(filename, "r") as f:
 		reader = csv.reader(f, delimiter=",")
 		data = list(reader)
-		total_row_count = len(data)
+		# The total rows includes the header row also
+		total_row_count = len(data) - 1
 
 	data = open(filename, 'rU')
 	reader = csv.reader(data)
 	# total_row_count = len(list(reader))
 	keys = reader.next()
-	i = 1
+	i = 0
 	for row in reader:
+		i += 1
 		print "\r\rWorking on Row [%s/%s]" % (i, total_row_count),
 		record_dict = dict(zip(keys, row))
 		# We only need those records where status is 'Delivered'
@@ -39,7 +41,6 @@ def readCustomerDataFromCSVandFormat(filename):
 			record_dict['add'] = formatting.formatAddress(record_dict['add'])
 			# Sending this row_of_data to mongodb
 			main_body(record_dict)
-			i += 1
 	data.close()
 
 
@@ -54,6 +55,7 @@ def insertDocumentInMongo(document):
 	# my_db = client.custdb
 	# col = my_db.cust_details_new
 	col.insert_one(document)
+	return True
 	# client.close()
 
 
@@ -94,9 +96,9 @@ def main_body(row_of_data):
 		# For each phone in the ph column of the row, check if that
 		# phone is present in mongodb
 		doc = fetchMongoDoc(phone)
-
 		#  If the phone already exists in mongodb
 		if doc:
+			need_to_replace_document = False
 			#  Check if the current wbn is already present in the order history
 			already_present = False
 			for order in doc['shipment_details']:
@@ -109,6 +111,7 @@ def main_body(row_of_data):
 				pass
 			# If the wbn is not present, then add the order to existing document
 			else:
+				need_to_replace_document = True
 				new_order = {
 					"wbn": row_of_data['wbn'],
 					"em": row_of_data["em"],
@@ -134,11 +137,32 @@ def main_body(row_of_data):
 					"pdd": row_of_data["pdd"]
 				}
 				doc['shipment_details'].append(new_order)
+			# Update alternate numbers
+			alternate_no = []
+			for num in row_of_data['ph']:
+				if num == phone:
+					pass
+				else:
+					alternate_no.append(num)
+			if alternate_no:
+				for num in alternate_no:
+					if num not in doc['alternate_no']:
+						need_to_replace_document = True
+						doc['alternate_no'].append(num)
+			# If the document needs to be replaced
+			if need_to_replace_document:
 				# Code to replace the existing doc in mongo
 				replaceDocument(phone, doc)
 
 		# If the phone doesn't exist in mongodb
 		else:
+			# Find the alternate numbers
+			alternate_no = []
+			for num in row_of_data['ph']:
+				if num == phone:
+					pass
+				else:
+					alternate_no.append(num)
 			# Create the document
 			document_to_insert = {
 				'phone_number': phone,
@@ -167,12 +191,13 @@ def main_body(row_of_data):
 						"cty": row_of_data["cty"],
 						"pdd": row_of_data["pdd"]
 					}
-				]
+				],
+				'alternate_no': alternate_no
 			}
 			# Insert the document into mongodb
-			insertDocumentInMongo(document_to_insert)
+			status = insertDocumentInMongo(document_to_insert)
 
 
 if __name__ == '__main__':
-	readCustomerDataFromCSVandFormat("till_13303787.csv")
+	readCustomerDataFromCSVandFormat("D:\\DQ_9sept\\till_13303787.csv")
 	client.close()
