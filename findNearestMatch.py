@@ -41,11 +41,14 @@ def findMatch(data_to_search, filename):
 	list_to_write = []
 	i = 0
 	index = 0
+	dc_count = 0
 	phone_not_found_count = 0
 	phone_numbers_found = 0
 	for row in data_to_search:
-		print "\r\rFinding document ... [%s / %s]\tPhone numbers not found: %s\tPhone numbers found: %s" % (
-			i + 1, len(data_to_search), phone_not_found_count, phone_numbers_found),
+		i += 1
+		print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
+			i, len(data_to_search), phone_not_found_count, phone_numbers_found,
+			dc_count),
 		phone_numbers = formatting.formatPhone(row['ph'])
 		for phone in phone_numbers:
 			mongoDoc = findMongoDocument(phone)
@@ -53,13 +56,12 @@ def findMatch(data_to_search, filename):
 				# print "Phone not found"
 				phone_not_found_count += 1
 				row['dc_found'] = ''
+				row['matched_adr'] = ''
 				row['confidence'] = ''
 				list_to_write.append(row)
-				# print "\r\rFinding document ... [%s / %s]\tPhone numbers not found: %s\tPhone numbers found: %s" % (
-				# 	i + 1, len(data_to_search), phone_not_found_count, phone_numbers_found),
-				i += 1
 				continue
-			# print "phone found"
+
+			# If phone number found
 			phone_numbers_found += 1
 			max_ratio = 0
 			for order in mongoDoc['shipment_details']:
@@ -69,16 +71,19 @@ def findMatch(data_to_search, filename):
 					index = mongoDoc['shipment_details'].index(order)
 			if max_ratio >= 75:
 				# print "address found"
+				dc_count += 1
 				my_dict = mongoDoc['shipment_details'][index]
 				row['dc_found'] = my_dict['cs_sl']
+				row['matched_adr'] = my_dict['add']
 				row['confidence'] = max_ratio
 			else:
 				row['dc_found'] = ''
+				row['matched_adr'] = ''
 				row['confidence'] = ''
 			list_to_write.append(row)
-			i += 1
-	# print "\nPhone numbers found: %s" % phone_numbers_found
-	# Write the rows to a csv
+		print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
+			i, len(data_to_search), phone_not_found_count, phone_numbers_found,
+			dc_count),
 	status = False
 	while status is False:
 		try:
@@ -101,9 +106,9 @@ def findMongoDocument(phone):
 
 if __name__ == '__main__':
 	contents_to_search_from = []
-	readCustomerDataFromCSV('sample_file_1.csv', contents_to_search_from)
+	readCustomerDataFromCSV('tushar_15092016 (2).csv', contents_to_search_from)
 	# Find the document and fetch relevant columns
-	findMatch(contents_to_search_from, "sample_file_result.csv")
+	findMatch(contents_to_search_from, "result_file_1.csv")
 	# End of Program
 	message = "Program Complete"
 	print "\n" + "-" * len(message) + "\n" + message + "\n" + "-" * len(message)
