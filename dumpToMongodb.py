@@ -93,8 +93,8 @@ def fetchMongoDoc(phone):
 
 def main_body(row_of_data):
 	for phone in row_of_data['ph']:
-		# For each phone in the ph column of the row, check if that
-		# phone is present in mongodb
+		# For each phone in the ph column of the row, check if this
+		# particular phone number is present in mongodb
 		doc = fetchMongoDoc(phone)
 		#  If the phone already exists in mongodb
 		if doc:

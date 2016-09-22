@@ -1,7 +1,10 @@
+import pprint
+from operator import itemgetter
 from pymongo import MongoClient
 import csv
 from fuzzywuzzy import fuzz
 from Source import formatting
+import time
 
 
 client = MongoClient()
@@ -63,27 +66,46 @@ def findMatch(data_to_search, filename):
 
 			# If phone number found
 			phone_numbers_found += 1
-			max_ratio = 0
+			confidence_threshold = 75
+
+			#  Sorting all the orders based upon cs_sd (Delivery date)
 			for order in mongoDoc['shipment_details']:
+				# if order['cs_st'].lower() == 'dl' and order['cs_ss'].lower() =='delivered':
+				if order['cs_sd']:
+					order['cs_sd'] = str(order['cs_sd'])[0:10]
+			# The orders are sorted in descending order and stored in a new list
+			newlist = sorted(mongoDoc['shipment_details'], key=itemgetter('cs_sd'), reverse=True)
+
+			latest_order_found = False
+			for order in newlist:
 				address = formatting.formatAddress(row['add'])
-				if fuzz.token_set_ratio(address, order['add']) > max_ratio:
-					max_ratio = fuzz.token_set_ratio(address, order['add'])
-					index = mongoDoc['shipment_details'].index(order)
-			if max_ratio >= 75:
-				# print "address found"
-				dc_count += 1
-				my_dict = mongoDoc['shipment_details'][index]
-				row['dc_found'] = my_dict['cs_sl']
-				row['matched_adr'] = my_dict['add']
-				row['confidence'] = max_ratio
-			else:
+				if (
+					fuzz.token_set_ratio(address, order['add']) >= confidence_threshold
+					and
+					order['cs_st'].lower() == 'dl'
+					and
+					order['cs_ss'].lower() == 'delivered'
+				):
+					latest_order_found = True
+					confidence_threshold = fuzz.token_set_ratio(address, order['add'])
+					index = newlist.index(order)
+					dc_count += 1
+					my_dict = newlist[index]
+					row['dc_found'] = my_dict['cs_sl']
+					row['matched_adr'] = my_dict['add']
+					row['confidence'] = confidence_threshold
+					break
+			if not latest_order_found:
 				row['dc_found'] = ''
 				row['matched_adr'] = ''
 				row['confidence'] = ''
 			list_to_write.append(row)
+		# Printing the final statistics
 		print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
 			i, len(data_to_search), phone_not_found_count, phone_numbers_found,
 			dc_count),
+
+	# Writing the results to a csv file
 	status = False
 	while status is False:
 		try:
