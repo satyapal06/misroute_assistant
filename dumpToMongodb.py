@@ -51,12 +51,8 @@ def insertDocumentInMongo(document):
 	# ARGUMENTS:
 	#       "all_documents": This is a list containing the JSON style documents
 	#       to be stored in mongodb
-	# client = MongoClient()
-	# my_db = client.custdb
-	# col = my_db.cust_details_new
 	col.insert_one(document)
 	return True
-	# client.close()
 
 
 def writeToCSV(filename, contents_to_write):
@@ -72,22 +68,16 @@ def writeToCSV(filename, contents_to_write):
 
 
 def replaceDocument(phone, new_document):
-	# client = MongoClient()
-	# db = client.custdb
-	# col = db.cust_details_new
+	# This function updates the existing mongo document with the
+	# new document with newly added shipment details
 	result = col.replace_one({'phone_number': str(phone)}, new_document)
-	# client.close()
 
 
 def fetchMongoDoc(phone):
-	# client = MongoClient()
-	# my_db = client.custdb
-	# col = my_db.cust_details_new
 	cursor = col.find({'phone_number': str(phone)})
 	document = {}
 	for doc in cursor:
 		document = doc
-	# client.close()
 	return document
 
 

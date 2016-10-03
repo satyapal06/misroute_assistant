@@ -50,3 +50,4 @@ mycsvfile.csv
 *.pyc
 sample_file.csv
 *.xlsx
+test.py
