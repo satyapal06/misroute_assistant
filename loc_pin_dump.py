@@ -1,5 +1,3 @@
-import pprint
-
 from pymongo import MongoClient
 
 client = MongoClient()
@@ -32,7 +30,7 @@ def fetchMongoDoc(loc_pin_combo):
 if __name__ == '__main__':
 	i = 0
 	for doc in SourceCursor:
-		i = i + 1
+		i += 1
 		print "\rWorking [%s]" % i,
 		loc_pin = str(doc['aseg']['loc']).lower() + str(doc['pin'])
 		# If loc_pin_combo already exists in mongodb
