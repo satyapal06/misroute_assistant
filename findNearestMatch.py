@@ -1,15 +1,14 @@
-import pprint
-from operator import itemgetter
-from pymongo import MongoClient
 import csv
+from operator import itemgetter
 from fuzzywuzzy import fuzz
+from pymongo import MongoClient
 from Source import formatting
-import time
 
-
-client = MongoClient()
-my_db = client.custdb
-col = my_db.cust_details
+# Global declaration for opening a connection to the mongo server
+client = MongoClient()                  # Client
+my_db = client.custdb                   # Database name is "custdb"
+col = my_db.cust_details               # Collection name is "cust_details"
+# The main function closes the connection at the end of the program
 
 
 def readCustomerDataFromCSV(filename, records_list):
@@ -85,8 +84,8 @@ def findMatch(data_to_search, filename):
 			for order in newlist:
 				address = formatting.formatAddress(row['add'])
 				if (
-							(fuzz.token_set_ratio(address, order['add']) >= confidence_threshold)
-						and (order['cs_st'].lower() == 'dl')
+					(fuzz.token_set_ratio(address, order['add']) >= confidence_threshold)
+					and (order['cs_st'].lower() == 'dl')
 					and (order['cs_ss'].lower() == 'delivered')
 				):
 					latest_order_found = True
@@ -103,16 +102,22 @@ def findMatch(data_to_search, filename):
 						row['Misroute?'] = 'Yes'
 					# list_to_write.append(row)
 					break
+			# If the address has been matched in this phone number
+			# document, no need to check for the remaining phone numbers
 			if latest_order_found:
 				break
+			# However, if this phone does not have the address,
+			# go to the next phone number
 			if not latest_order_found:
 				row['DC_Found'] = ''
 				row['Matched_adr'] = ''
 				row['Confidence'] = ''
 				row['Misroute?'] = ''
 				continue
+		# After we have checked all the phone numbers, append the
+		# row to the final list with the four new columns
 		list_to_write.append(row)
-		
+
 	# Printing the final statistics
 	print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
 		i, len(data_to_search), phone_not_found_count, phone_numbers_found,
@@ -141,7 +146,8 @@ def findMongoDocument(phone):
 
 if __name__ == '__main__':
 	contents_to_search_from = []
-	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_1.csv", contents_to_search_from)
+	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_1.csv",
+			contents_to_search_from)
 	# Find the document and fetch relevant columns
 	findMatch(contents_to_search_from, "result_file_1.csv")
 	# End of Program
