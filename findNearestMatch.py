@@ -49,22 +49,27 @@ def findMatch(data_to_search, filename):
 	phone_numbers_found = 0
 	for row in data_to_search:
 		i += 1
+		# Print initial stats
 		print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
 			i, len(data_to_search), phone_not_found_count, phone_numbers_found,
 			dc_count),
+
 		phone_numbers = formatting.formatPhone(row['ph'])
 		for phone in phone_numbers:
 			mongoDoc = findMongoDocument(phone)
+
+			# If phone not found in mongodb
 			if not mongoDoc:
-				# print "Phone not found"
 				phone_not_found_count += 1
-				row['dc_found'] = ''
-				row['matched_adr'] = ''
-				row['confidence'] = ''
-				list_to_write.append(row)
+				row['DC_Found'] = ''
+				row['Matched_adr'] = ''
+				row['Confidence'] = ''
+				row['Misroute?'] = ''
+				# Continue to check if the next phone number in the list is present in mongodb
 				continue
 
-			# If phone number found
+			# If phone number found, then sort the orders and find
+			# the nearest matching address and its corresponding DC
 			phone_numbers_found += 1
 			confidence_threshold = 75
 
@@ -80,30 +85,38 @@ def findMatch(data_to_search, filename):
 			for order in newlist:
 				address = formatting.formatAddress(row['add'])
 				if (
-					fuzz.token_set_ratio(address, order['add']) >= confidence_threshold
-					and
-					order['cs_st'].lower() == 'dl'
-					and
-					order['cs_ss'].lower() == 'delivered'
+							(fuzz.token_set_ratio(address, order['add']) >= confidence_threshold)
+						and (order['cs_st'].lower() == 'dl')
+					and (order['cs_ss'].lower() == 'delivered')
 				):
 					latest_order_found = True
-					confidence_threshold = fuzz.token_set_ratio(address, order['add'])
+					confidence = fuzz.token_set_ratio(address, order['add'])
 					index = newlist.index(order)
 					dc_count += 1
 					my_dict = newlist[index]
-					row['dc_found'] = my_dict['cs_sl']
-					row['matched_adr'] = my_dict['add']
-					row['confidence'] = confidence_threshold
+					row['DC_Found'] = my_dict['cs_sl']
+					row['Matched_adr'] = my_dict['add']
+					row['Confidence'] = confidence
+					if my_dict['cs_sl'].lower() == row['cn'].lower():
+						row['Misroute?'] = 'No'
+					else:
+						row['Misroute?'] = 'Yes'
+					# list_to_write.append(row)
 					break
+			if latest_order_found:
+				break
 			if not latest_order_found:
-				row['dc_found'] = ''
-				row['matched_adr'] = ''
-				row['confidence'] = ''
-			list_to_write.append(row)
-		# Printing the final statistics
-		print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
-			i, len(data_to_search), phone_not_found_count, phone_numbers_found,
-			dc_count),
+				row['DC_Found'] = ''
+				row['Matched_adr'] = ''
+				row['Confidence'] = ''
+				row['Misroute?'] = ''
+				continue
+		list_to_write.append(row)
+		
+	# Printing the final statistics
+	print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
+		i, len(data_to_search), phone_not_found_count, phone_numbers_found,
+		dc_count),
 
 	# Writing the results to a csv file
 	status = False
@@ -111,7 +124,7 @@ def findMatch(data_to_search, filename):
 		try:
 			status = writeToCSV(filename, list_to_write)
 		except IOError as e:
-			ch = raw_input("Close the file <" + filename + "> and press any key to continue: ")
+			ch = raw_input("\nClose the file <" + filename + "> and press any key to continue: ")
 
 
 def findMongoDocument(phone):
@@ -128,7 +141,7 @@ def findMongoDocument(phone):
 
 if __name__ == '__main__':
 	contents_to_search_from = []
-	readCustomerDataFromCSV('tushar_15092016 (2).csv', contents_to_search_from)
+	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_1.csv", contents_to_search_from)
 	# Find the document and fetch relevant columns
 	findMatch(contents_to_search_from, "result_file_1.csv")
 	# End of Program
