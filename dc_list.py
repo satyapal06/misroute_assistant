@@ -1,6 +1,7 @@
 import csv
 from pymongo import MongoClient
 
+
 client = MongoClient()
 my_db = client.custdb
 coll = my_db.loc_pin
@@ -20,7 +21,7 @@ def list_dcs(count):
 		list_to_write.append(
 			{
 				'loc_pin': locpincombo,
-				'total_shipments' : len(doc['shipments']),
+				'total_shipments': len(doc['shipments']),
 				'dc_list': dc_list,
 				'count_of_dc' : len(dc_list)
 			}
@@ -44,6 +45,6 @@ def writeToCSV(filename, contents_to_write):
 
 
 if __name__ == '__main__':
-	list_to_write = list_dcs(1000)
+	list_to_write = list_dcs(100000)
 	writeToCSV("dc_list.csv", list_to_write)
 	client.close()
