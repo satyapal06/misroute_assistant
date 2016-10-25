@@ -1,4 +1,5 @@
 import csv
+import pprint
 from operator import itemgetter
 from fuzzywuzzy import fuzz
 from pymongo import MongoClient
@@ -31,15 +32,45 @@ def writeToCSV(filename, contents_to_write):
 	# PURPOSE:
 	#       This function reads the contents of a List of Dictionaries,
 	#       and stores them in a csv file.
+	myKeys = [
+		"Misroute?",
+		"Matched_adr",
+		"DC_Found",
+		"cn",
+		"pin",
+		"cl",
+		"aseg.invalid_add_code",
+		"date.mnd",
+		"aseg.city_identified",
+		"add",
+		"nsl.lc",
+		"aseg.loc",
+		"cnc",
+		"ph",
+		"pl",
+		"cs.st",
+		"cpin",
+		"cs.sr",
+		"cs.ss",
+		"cs.sl",
+		"cs.sd",
+		"nsl.code",
+		"aseg.pin",
+		"cty",
+		"aseg.invalid_add",
+		"aseg.mismatch",
+		"wbn",
+		"pdd"
+	]
 	with open(filename, 'wb') as f:
-		w = csv.DictWriter(f, contents_to_write[0].keys())
+		w = csv.DictWriter(f, myKeys)
 		w.writeheader()
 		for row in contents_to_write:
 			w.writerow(row)
 	return True
 
 
-def findMatch(data_to_search, filename):
+def findMatch(data_to_search, filename, dc_current_status):
 	list_to_write = []
 	i = 0
 	index = 0
@@ -59,8 +90,6 @@ def findMatch(data_to_search, filename):
 		total_adr_matched = 0
 
 		# Print initial stats
-		# print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
-		# 	i, len(data_to_search), phone_not_found_count, phone_numbers_found,	dc_count),
 		print "\r\rFinding document: [%s / %s] [%s %%]" % (i, (len(data_to_search)), (round((i*100)/len(data_to_search), 1))),
 
 		# Fetching all the formatted phone numbers present in the row
@@ -96,39 +125,16 @@ def findMatch(data_to_search, filename):
 				address = formatting.formatAddress(row['add'])
 				if (
 					(fuzz.token_set_ratio(address, order['add']) >= confidence_threshold)
-					# and (order['cs_st'].lower() == 'dl')
-					# and (order['cs_ss'].lower() == 'delivered')
 				):
-					# latest_order_found = True
-					# confidence = fuzz.token_set_ratio(address, order['add'])
-					# index = mongoDoc['shipment_details'].index(order)
-					dc_count += 1
-					# my_dict = mongoDoc['shipment_details'][index]
-					# row['DC_Found'] = my_dict['cs_sl']
-					row['Matched_adr'] = order['add']
-					dc_found_list.setdefault(order['cn'], 0)
-					dc_found_list[order['cn']] += 1
-					total_adr_matched += 1
-					# row['Confidence'] = confidence
-					# if my_dict['cs_sl'].lower() == row['cn'].lower():
-					# 	row['Misroute?'] = 'No'
-					# else:
-					# 	row['Misroute?'] = 'Yes'
-					# list_to_write.append(row)
-					# break
+					if str(order['cn'])[0: str(order['cn']).index(" (")].lower() in dc_current_status.keys():
+						# The DC should be active.
+						if dc_current_status[str(order['cn'])[0: str(order['cn']).index(" (")].lower()] == 'active':
+							dc_count += 1
+							row['Matched_adr'] = order['add']
+							dc_found_list.setdefault(order['cn'], 0)
+							dc_found_list[order['cn']] += 1
+							total_adr_matched += 1
 
-			# If the address has been matched in this phone number
-			# document, no need to check for the remaining phone numbers
-			# if latest_order_found:
-			# 	break
-			# However, if this phone does not have the address,
-			# go to the next phone number
-			# if not latest_order_found:
-			# 	row['DC_Found'] = ''
-			# 	row['Matched_adr'] = ''
-			# 	row['Confidence'] = ''
-			# 	row['Misroute?'] = ''
-			# 	continue
 		# After we have checked all the phone numbers, append the
 		# row to the final list with the four new columns
 		if dc_found_list :
@@ -138,7 +144,30 @@ def findMatch(data_to_search, filename):
 			new_list = sorted(new_list,key=itemgetter(1), reverse=True)
 			new_list = str(new_list).replace("],","};").replace("[[","{").replace("]]","}").replace("[","{")
 			row['DC_Found'] = new_list
-			if row['cn'].lower() not in str(dc_found_list.keys()).lower():
+			if "_D (" in row['cn'] or "_K (" in row['cn']:
+				if row['cn'].lower() not in str(dc_found_list.keys()).lower():
+					if "_D (" in row['cn']:
+						if row['cn'].replace("_D (", "_K (").lower() not in str(dc_found_list.keys()).lower():
+							row['Misroute?'] = 'Yes'
+						elif dc_found_list[row['cn'].replace("_D (", "_K (")] == max(dc_found_list.values()):
+							row['Misroute?'] = 'No'
+						else:
+							row['Misroute?'] = 'Maybe'
+					elif "_K (" in row['cn']:
+						if row['cn'].replace("_K (", "_D (").lower() not in str(dc_found_list.keys()).lower():
+							row['Misroute?'] = 'Yes'
+						elif dc_found_list[row['cn'].replace("_K (", "_D (")] == max(dc_found_list.values()):
+							row['Misroute?'] = 'No'
+						else:
+							row['Misroute?'] = 'Maybe'
+				else:
+					if row['cn'].lower() not in str(dc_found_list.keys()).lower():
+						row['Misroute?'] = 'Yes'
+					elif dc_found_list[row['cn']] == max(dc_found_list.values()):
+						row['Misroute?'] = 'No'
+					else:
+						row['Misroute?'] = 'Maybe'
+			elif row['cn'].lower() not in str(dc_found_list.keys()).lower():
 				row['Misroute?'] = 'Yes'
 			elif dc_found_list[row['cn']] == max(dc_found_list.values()):
 				row['Misroute?'] = 'No'
@@ -148,9 +177,6 @@ def findMatch(data_to_search, filename):
 		list_to_write.append(row)
 
 	# Printing the final statistics
-	# print "\r\rFinding document: [%s / %s]\tPhone numbers not found: [%s]\tPhone numbers found: [%s]\tDCs found: [%s]" % (
-	# 	i, len(data_to_search), phone_not_found_count, phone_numbers_found,
-	# 	dc_count),
 		print "\r\rFinding document: [%s / %s] [%s %%]" % (i, (len(data_to_search)), (round((i * 100) / len(data_to_search), 1))),
 
 	# Writing the results to a csv file
@@ -163,9 +189,6 @@ def findMatch(data_to_search, filename):
 
 
 def findMongoDocument(phone):
-	# client = MongoClient()
-	# my_db = client.custdb
-	# col = my_db.cust_details
 	cursor = col.find({'phone_number': str(phone)})
 	document = {}
 	for doc in cursor:
@@ -174,12 +197,24 @@ def findMongoDocument(phone):
 	return document
 
 
+def csvToDict(filename, my_dict):
+	data = open(filename, 'rU')
+	reader = csv.reader(data)
+	keys = reader.next()
+	for row in reader:
+		record_dict = dict(zip(keys, row))
+		# Store the DC names and the status in lower-case
+		my_dict[str(record_dict['DC']).lower()] = str(record_dict['Status']).lower()
+	data.close()
+
+
 if __name__ == '__main__':
-	contents_to_search_from = []
+	contents_to_search_from, dc_status = [], {}
 	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_1.csv",
 			contents_to_search_from)
+	csvToDict("DC_Status.csv", dc_status)
 	# Find the document and fetch relevant columns
-	findMatch(contents_to_search_from, "result_file_1.csv")
+	findMatch(contents_to_search_from, "result_file_1.csv", dc_status)
 	# End of Program
 	message = "Program Complete"
 	print "\n" + "-" * len(message) + "\n" + message + "\n" + "-" * len(message)
