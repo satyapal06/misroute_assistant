@@ -47,8 +47,8 @@ def readCustomerDataFromCSVandFormat(filename):
 		try:
 			i += 1
 			print "\r\rWorking on Row [%s]" % (i),
-			# if i < 4184932:
-			# 	continue
+			if i < 4184932:
+				continue
 			record_dict = dict(zip(keys, row))
 			# We only need those records where status is 'Delivered'
 			if record_dict['cs.st'] in ['DL', 'dl']:
@@ -211,5 +211,5 @@ def main_body(row_of_data):
 
 
 if __name__ == '__main__':
-	readCustomerDataFromCSVandFormat("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_3.csv")
+	readCustomerDataFromCSVandFormat("D:\\pickupdata_1sep_25oct16 (1)\\pickupdata_1sep_25oct16.csv")
 	client.close()
