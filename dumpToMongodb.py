@@ -9,6 +9,17 @@ my_db = client.custdb
 col = my_db.cust_details
 
 
+def mycsv_reader(csv_reader):
+	while True:
+		try:
+			yield next(csv_reader)
+		except csv.Error:
+			# error handling what you want.
+			pass
+		continue
+	return
+
+
 def readCustomerDataFromCSVandFormat(filename):
 	# PURPOSE:
 	#       This function reads the contents of customer data from the CSV file
@@ -17,31 +28,38 @@ def readCustomerDataFromCSVandFormat(filename):
 	#       the function 'main_body'. All these steps happen row by row.
 	# ARGUMENTS:
 	#       "filename": This is the name of the file from where data has to read
-	print "Determining file size ... ",
-	total_row_count = 0
-	with open(filename, "r") as f:
-		reader = csv.reader(f, delimiter=",")
-		data = list(reader)
-		# The total rows includes the header row also
-		total_row_count = len(data) - 1
 
-	data = open(filename, 'rU')
-	reader = csv.reader(data)
+	# print "Determining file size ... ",
+	# total_row_count = 0
+	# with open(filename, "r") as f:
+	# 	reader = csv.reader(f, delimiter=",")
+	# 	data = list(reader)
+	# 	# The total rows includes the header row also
+	# 	total_row_count = len(data) - 1
+
+	# To resolve the null byte error, used the solution recommended here:
+	# http://stackoverflow.com/questions/26050968/line-contains-null-byte-error-in-python-csv-reader
+	reader = mycsv_reader(csv.reader(open(filename, 'rU')))
 	# total_row_count = len(list(reader))
 	keys = reader.next()
 	i = 0
 	for row in reader:
-		i += 1
-		print "\r\rWorking on Row [%s/%s]" % (i, total_row_count),
-		record_dict = dict(zip(keys, row))
-		# We only need those records where status is 'Delivered'
-		if record_dict['cs.st'] in ['DL', 'dl']:
-			# Formatting the phone and the address
-			record_dict['ph'] = formatting.formatPhone(record_dict['ph'])
-			record_dict['add'] = formatting.formatAddress(record_dict['add'])
-			# Sending this row_of_data to mongodb
-			main_body(record_dict)
-	data.close()
+		try:
+			i += 1
+			print "\r\rWorking on Row [%s]" % (i),
+			# if i < 4184932:
+			# 	continue
+			record_dict = dict(zip(keys, row))
+			# We only need those records where status is 'Delivered'
+			if record_dict['cs.st'] in ['DL', 'dl']:
+				# Formatting the phone and the address
+				record_dict['ph'] = formatting.formatPhone(record_dict['ph'])
+				record_dict['add'] = formatting.formatAddress(record_dict['add'])
+				# Sending this row_of_data to mongodb
+				main_body(record_dict)
+		except csv.Error as e:
+			continue
+	# data.close()
 
 
 def insertDocumentInMongo(document):
@@ -105,7 +123,9 @@ def main_body(row_of_data):
 				new_order = {
 					"wbn": row_of_data['wbn'],
 					"em": row_of_data["em"],
-					"nsl": row_of_data["nsl"],
+					# "nsl": row_of_data["nsl"],
+					"nsl": '',  # Modified on 26th October
+					# Reason: NSL code not recieved, so inserting blanks in mongodb
 					"cn": row_of_data["cn"],
 					"pin": row_of_data["pin"],
 					"cl": row_of_data["cl"],
@@ -160,7 +180,9 @@ def main_body(row_of_data):
 					{
 						"wbn": row_of_data['wbn'],
 						"em": row_of_data["em"],
-						"nsl": row_of_data["nsl"],
+						# "nsl": row_of_data["nsl"],
+						"nsl": '',  # Modified on 26th October
+						# Reason: NSL code not recieved, so inserting blanks in mongodb
 						"cn": row_of_data["cn"],
 						"pin": row_of_data["pin"],
 						"cl": row_of_data["cl"],
@@ -189,5 +211,5 @@ def main_body(row_of_data):
 
 
 if __name__ == '__main__':
-	readCustomerDataFromCSVandFormat("D:\\DQ_9sept\\till_13303787.csv")
+	readCustomerDataFromCSVandFormat("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_3.csv")
 	client.close()
