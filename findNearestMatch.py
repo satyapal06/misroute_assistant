@@ -24,7 +24,11 @@ def readCustomerDataFromCSV(filename, records_list):
 	keys = reader.next()
 	for row in reader:
 		record_dict = dict(zip(keys, row))
-		records_list.append(record_dict)
+		# Sometimes, there are cases where the PD doesn't contain any
+		# value in the 'CN' column. So we are filtering out those cases.
+		# No calculation will be done on such rows.
+		if record_dict['cn']:
+			records_list.append(record_dict)
 	data.close()
 
 
@@ -33,6 +37,7 @@ def writeToCSV(filename, contents_to_write):
 	#       This function reads the contents of a List of Dictionaries,
 	#       and stores them in a csv file.
 	myKeys = [
+		"wbn",
 		"Misroute?",
 		"Matched_adr",
 		"DC_Found",
@@ -59,14 +64,17 @@ def writeToCSV(filename, contents_to_write):
 		"cty",
 		"aseg.invalid_add",
 		"aseg.mismatch",
-		"wbn",
-		"pdd"
+		"pdd",
+		"pd"
 	]
 	with open(filename, 'wb') as f:
 		w = csv.DictWriter(f, myKeys)
 		w.writeheader()
 		for row in contents_to_write:
-			w.writerow(row)
+			try:
+				w.writerow(row)
+			except UnicodeEncodeError as e:
+				continue
 	return True
 
 
@@ -126,7 +134,11 @@ def findMatch(data_to_search, filename, dc_current_status):
 				if (
 					(fuzz.token_set_ratio(address, order['add']) >= confidence_threshold)
 				):
-					if str(order['cn'])[0: str(order['cn']).index(" (")].lower() in dc_current_status.keys():
+					if " (" in str(order['cn']):
+						end_index = str(order['cn']).index(" (")
+					else:
+						end_index = len(str(order['cn']))
+					if str(order['cn'])[0: end_index].lower() in dc_current_status.keys():
 						# The DC should be active.
 						if dc_current_status[str(order['cn'])[0: str(order['cn']).index(" (")].lower()] == 'active':
 							dc_count += 1
@@ -210,7 +222,7 @@ def csvToDict(filename, my_dict):
 
 if __name__ == '__main__':
 	contents_to_search_from, dc_status = [], {}
-	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Documents\\GitHub\\misroute_assistant\\New folder\\part_1.csv",
+	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Downloads\\pickupdata_24oct16\\pickupdata_24oct16.csv",
 			contents_to_search_from)
 	csvToDict("DC_Status.csv", dc_status)
 	# Find the document and fetch relevant columns
