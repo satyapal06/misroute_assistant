@@ -6,9 +6,9 @@ from pymongo import MongoClient
 from Source import formatting
 
 # Global declaration for opening a connection to the mongo server
-client = MongoClient()                  # Client
+client = MongoClient('10.0.21.118')                  # Client
 my_db = client.custdb                   # Database name is "custdb"
-col = my_db.cust_details               # Collection name is "cust_details"
+col = my_db.cust_details                # Collection name is "cust_details"
 # The main function closes the connection at the end of the program
 
 
@@ -222,8 +222,7 @@ def csvToDict(filename, my_dict):
 
 if __name__ == '__main__':
 	contents_to_search_from, dc_status = [], {}
-	readCustomerDataFromCSV("C:\\Users\\Delhivery\\Downloads\\pickupdata_24oct16\\pickupdata_24oct16.csv",
-			contents_to_search_from)
+	readCustomerDataFromCSV("pickupdata_3oct.csv", contents_to_search_from)
 	csvToDict("DC_Status.csv", dc_status)
 	# Find the document and fetch relevant columns
 	findMatch(contents_to_search_from, "result_file_1.csv", dc_status)
